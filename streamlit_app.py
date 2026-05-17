@@ -523,7 +523,7 @@ with aba_email:
                 key="senha"
             )
             st.caption(
-                "Senha de aplicativo: gfgu rkpu eerx vtlo"
+                "Senha de aplicativo"
             )
 
         anexar_pdf = st.checkbox(

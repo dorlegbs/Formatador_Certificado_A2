@@ -1,0 +1,28 @@
+Instruções de uso — Formatador de Certificados
+
+1) Coloque o arquivo da tabela na mesma pasta do formatador.py
+
+2) Rode o código e coloque o nome do arquivo (com .xlsx ou .csv) - ex: Camisas_LACOM _respostas.xlsx
+
+3) Se a tabela puder ser filtrada (ex: presente x ausente) o código vai fornecer a informação e perguntar se o usuário deseja usar o filtro (s/n)
+	3.1) Caso sim, o usuário escolhe o que quer filtrar
+	3.2) Caso não, o código segue.
+
+4) Digite o contexto em que o nome deve ser inserido (útil na contrução de textos para certificados) - ex: "Certifico que {nome} participou da palestra, com duração de 2h, ministrada por Rafael Sant’anna, promovida pela LACOM Jr, Empresa Júnior de Comunicação Digital da Fundação Getúlio Vargas, no dia 06 de maio de 2026."
+	OBS1: o termo "nome" deve estar exatamente assim, entre chaves {}.
+	OBS2: as aspas do texto inserido devem ser removidas para não aparecerem no design final.
+
+5) Digite o caminho do arquivo final (para onde o usuário quer que o arquivo vá) ou simplesmente aperte "ENTER" e salve na pasta atual.
+
+6) No explorador de arquivos, abra a tabela final.
+
+=================
+No CANVA:
+
+1) Abra o modelo do certificado, por exemplo, e, em "aplicativos" (ou Apps), selecione "Bulk Create" ou "Criar em Lote".
+
+2) Faça upload dos dados e selecione a tabela.
+
+3) Clique em "Continuar" nas próximas duas etapas.
+
+4) Por fim, selecione "Criar designs" - o canva vai gerar automaticamente os certificados.

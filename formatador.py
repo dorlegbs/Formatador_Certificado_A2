@@ -251,10 +251,14 @@ def gerar_pdf(
     nome,
     texto,
     signature_path=None,
-    bg_path=None
+    bg_path=None,
+    output_dir=None
 ):
 
-    os.makedirs("pdfs", exist_ok=True)
+    if output_dir is None:
+        output_dir = "pdfs"
+
+    os.makedirs(output_dir, exist_ok=True)
 
     nome = nome.strip() if nome else ""
     if not nome:
@@ -263,7 +267,7 @@ def gerar_pdf(
     if not nome_arquivo.strip("._ "):
         nome_arquivo = "SemNome"
 
-    caminho_pdf = os.path.join("pdfs", f"{nome_arquivo}.pdf")
+    caminho_pdf = os.path.join(output_dir, f"{nome_arquivo}.pdf")
 
     # Registra fontes
     font_body, font_bold = _registrar_fontes()

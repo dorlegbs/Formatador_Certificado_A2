@@ -372,19 +372,31 @@ with aba_cert:
 
         st.divider()
 
+        pasta_destino = st.text_input(
+            "Pasta de destino (deixe em branco para usar 'saidas/' e 'pdfs/')",
+            value="",
+            key="pasta_destino"
+        )
+
         if st.button("Gerar Certificados", key="btn_cert"):
 
             textos = gerar_textos(df, coluna_nome, texto_padrao)
 
             nome_base = os.path.splitext(arquivo.name)[0]
             nome_saida = f"saida_{nome_base}.xlsx"
-            caminho_saida = os.path.join("saidas", nome_saida)
+
+            if pasta_destino.strip():
+                caminho_saida = os.path.join(pasta_destino, nome_saida)
+                pdf_dir = pasta_destino
+            else:
+                caminho_saida = os.path.join("saidas", nome_saida)
+                pdf_dir = None
 
             exportar_excel(textos, caminho_saida)
 
             if gerar_pdfs:
                 for texto, nome in zip(textos, df[coluna_nome]):
-                    gerar_pdf(nome, texto, signature_path=sig_path)
+                    gerar_pdf(nome, texto, signature_path=sig_path, output_dir=pdf_dir)
 
             # Historico
             historico_path = os.path.join(

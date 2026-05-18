@@ -534,9 +534,7 @@ with aba_email:
                 type="password",
                 key="senha"
             )
-            st.caption(
-                "Senha de aplicativo"
-            )
+
 
         anexar_pdf = st.checkbox(
             "Anexar PDF do certificado",

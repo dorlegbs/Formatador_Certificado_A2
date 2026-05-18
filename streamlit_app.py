@@ -372,61 +372,94 @@ with aba_cert:
 
         st.divider()
 
-        pasta_destino = st.text_input(
-            "Pasta de destino (deixe em branco para usar 'saidas/' e 'pdfs/')",
-            value="",
-            key="pasta_destino"
-        )
+        # =========================
+        # FLUXO EM DUAS ETAPAS
+        # =========================
+        if "cert_step" not in st.session_state:
+            st.session_state.cert_step = "idle"
 
         if st.button("Gerar Certificados", key="btn_cert"):
+            st.session_state.textos_gerados = gerar_textos(df, coluna_nome, texto_padrao)
+            st.session_state.nome_base = os.path.splitext(arquivo.name)[0]
+            st.session_state.cert_step = "folder"
+            st.rerun()
 
-            textos = gerar_textos(df, coluna_nome, texto_padrao)
+        if st.session_state.cert_step == "folder":
+            st.markdown("### 📁 Escolher pasta de destino")
 
-            nome_base = os.path.splitext(arquivo.name)[0]
-            nome_saida = f"saida_{nome_base}.xlsx"
-
-            if pasta_destino.strip():
-                caminho_saida = os.path.join(pasta_destino, nome_saida)
-                pdf_dir = pasta_destino
-            else:
-                caminho_saida = os.path.join("saidas", nome_saida)
-                pdf_dir = None
-
-            exportar_excel(textos, caminho_saida)
-
-            if gerar_pdfs:
-                for texto, nome in zip(textos, df[coluna_nome]):
-                    gerar_pdf(nome, texto, signature_path=sig_path, output_dir=pdf_dir)
-
-            # Historico
-            historico_path = os.path.join(
-                "historico", "historico.xlsx"
+            pasta_destino = st.text_input(
+                "Caminho da pasta para salvar os certificados "
+                "(deixe em branco para usar 'saidas/' e 'pdfs/')",
+                placeholder="Ex: C:\\Users\\SeuNome\\Desktop\\certificados",
+                key="pasta_destino_pos"
             )
-            novo_historico = pd.DataFrame({
-                "Arquivo":    [arquivo.name],
-                "Data":       [datetime.now().strftime("%d/%m/%Y %H:%M")],
-                "Quantidade": [len(df)]
-            })
-            if os.path.exists(historico_path):
-                historico_antigo = pd.read_excel(historico_path)
-                novo_historico = pd.concat(
-                    [historico_antigo, novo_historico],
-                    ignore_index=True
-                )
-            novo_historico.to_excel(historico_path, index=False)
 
+            col_ok, col_no = st.columns(2)
+            with col_ok:
+                if st.button("✅ Confirmar e Gerar", key="btn_confirm"):
+                    nome_saida = f"saida_{st.session_state.nome_base}.xlsx"
+
+                    if pasta_destino.strip():
+                        caminho_saida = os.path.join(pasta_destino, nome_saida)
+                        pdf_dir = pasta_destino
+                    else:
+                        caminho_saida = os.path.join("saidas", nome_saida)
+                        pdf_dir = None
+
+                    exportar_excel(st.session_state.textos_gerados, caminho_saida)
+
+                    if gerar_pdfs:
+                        for texto, nome in zip(
+                            st.session_state.textos_gerados, df[coluna_nome]
+                        ):
+                            gerar_pdf(
+                                nome, texto,
+                                signature_path=sig_path,
+                                output_dir=pdf_dir
+                            )
+
+                    # Historico
+                    historico_path = os.path.join(
+                        "historico", "historico.xlsx"
+                    )
+                    novo_historico = pd.DataFrame({
+                        "Arquivo":    [arquivo.name],
+                        "Data":       [datetime.now().strftime("%d/%m/%Y %H:%M")],
+                        "Quantidade": [len(df)]
+                    })
+                    if os.path.exists(historico_path):
+                        historico_antigo = pd.read_excel(historico_path)
+                        novo_historico = pd.concat(
+                            [historico_antigo, novo_historico],
+                            ignore_index=True
+                        )
+                    novo_historico.to_excel(historico_path, index=False)
+
+                    st.session_state.cert_step = "done"
+                    st.session_state.caminho_saida = caminho_saida
+                    st.session_state.nome_saida = nome_saida
+                    st.rerun()
+
+            with col_no:
+                if st.button("❌ Cancelar", key="btn_cancel"):
+                    st.session_state.cert_step = "idle"
+                    st.rerun()
+
+        if st.session_state.cert_step == "done":
             st.success("Certificados gerados com sucesso!")
 
-            with open(caminho_saida, "rb") as file:
+            with open(st.session_state.caminho_saida, "rb") as file:
                 st.download_button(
                     label="⬇️ Baixar planilha gerada",
                     data=file,
-                    file_name=nome_saida,
+                    file_name=st.session_state.nome_saida,
                     mime=(
                         "application/vnd.openxmlformats-"
                         "officedocument.spreadsheetml.sheet"
                     )
                 )
+
+
 
 # ======================================
 # ABA 2 — FORMATADOR DE E-MAILS

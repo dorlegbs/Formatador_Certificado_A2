@@ -373,81 +373,81 @@ with aba_cert:
         st.divider()
 
         # =========================
-        # FLUXO EM DUAS ETAPAS
+        # FLUXO DE GERAÇÃO
         # =========================
-        if "cert_step" not in st.session_state:
-            st.session_state.cert_step = "idle"
+        if "mostrar_pastas" not in st.session_state:
+            st.session_state.mostrar_pastas = False
+        if "gerou" not in st.session_state:
+            st.session_state.gerou = False
 
         if st.button("Gerar Certificados", key="btn_cert"):
-            st.session_state.textos_gerados = gerar_textos(df, coluna_nome, texto_padrao)
-            st.session_state.nome_base = os.path.splitext(arquivo.name)[0]
-            st.session_state.cert_step = "folder"
-            st.rerun()
+            st.session_state.mostrar_pastas = True
+            st.session_state.gerou = False
 
-        if st.session_state.cert_step == "folder":
-            st.markdown("### 📁 Escolher pasta de destino")
+        if st.session_state.mostrar_pastas:
+            st.markdown("### 📁 Escolher pastas de destino")
 
-            pasta_destino = st.text_input(
-                "Caminho da pasta para salvar os certificados "
-                "(deixe em branco para usar 'saidas/' e 'pdfs/')",
-                placeholder="Ex: C:\\Users\\SeuNome\\Desktop\\certificados",
-                key="pasta_destino_pos"
+            pasta_excel = st.text_input(
+                "Pasta para salvar a planilha Excel (deixe em branco para usar 'saidas/')",
+                key="pasta_excel"
             )
+
+            if gerar_pdfs:
+                pasta_pdf = st.text_input(
+                    "Pasta para salvar os PDFs (deixe em branco para usar 'pdfs/')",
+                    key="pasta_pdf"
+                )
 
             col_ok, col_no = st.columns(2)
             with col_ok:
                 if st.button("✅ Confirmar e Gerar", key="btn_confirm"):
-                    nome_saida = f"saida_{st.session_state.nome_base}.xlsx"
+                    try:
+                        nome_base = os.path.splitext(arquivo.name)[0]
+                        nome_saida = f"saida_{nome_base}.xlsx"
 
-                    if pasta_destino.strip():
-                        caminho_saida = os.path.join(pasta_destino, nome_saida)
-                        pdf_dir = pasta_destino
-                    else:
-                        caminho_saida = os.path.join("saidas", nome_saida)
-                        pdf_dir = None
+                        if pasta_excel.strip():
+                            caminho_saida = os.path.join(pasta_excel, nome_saida)
+                        else:
+                            caminho_saida = os.path.join("saidas", nome_saida)
 
-                    exportar_excel(st.session_state.textos_gerados, caminho_saida)
+                        textos = gerar_textos(df, coluna_nome, texto_padrao)
+                        exportar_excel(textos, caminho_saida)
 
-                    if gerar_pdfs:
-                        for texto, nome in zip(
-                            st.session_state.textos_gerados, df[coluna_nome]
-                        ):
-                            gerar_pdf(
-                                nome, texto,
-                                signature_path=sig_path,
-                                output_dir=pdf_dir
+                        if gerar_pdfs:
+                            pdf_dir = pasta_pdf.strip() if pasta_pdf.strip() else None
+                            for texto, nome in zip(textos, df[coluna_nome]):
+                                gerar_pdf(nome, texto, signature_path=sig_path, output_dir=pdf_dir)
+
+                        # Historico
+                        historico_path = os.path.join("historico", "historico.xlsx")
+                        novo_historico = pd.DataFrame({
+                            "Arquivo":    [arquivo.name],
+                            "Data":       [datetime.now().strftime("%d/%m/%Y %H:%M")],
+                            "Quantidade": [len(df)]
+                        })
+                        if os.path.exists(historico_path):
+                            historico_antigo = pd.read_excel(historico_path)
+                            novo_historico = pd.concat(
+                                [historico_antigo, novo_historico],
+                                ignore_index=True
                             )
+                        novo_historico.to_excel(historico_path, index=False)
 
-                    # Historico
-                    historico_path = os.path.join(
-                        "historico", "historico.xlsx"
-                    )
-                    novo_historico = pd.DataFrame({
-                        "Arquivo":    [arquivo.name],
-                        "Data":       [datetime.now().strftime("%d/%m/%Y %H:%M")],
-                        "Quantidade": [len(df)]
-                    })
-                    if os.path.exists(historico_path):
-                        historico_antigo = pd.read_excel(historico_path)
-                        novo_historico = pd.concat(
-                            [historico_antigo, novo_historico],
-                            ignore_index=True
-                        )
-                    novo_historico.to_excel(historico_path, index=False)
-
-                    st.session_state.cert_step = "done"
-                    st.session_state.caminho_saida = caminho_saida
-                    st.session_state.nome_saida = nome_saida
-                    st.rerun()
+                        st.session_state.gerou = True
+                        st.session_state.caminho_saida = caminho_saida
+                        st.session_state.nome_saida = nome_saida
+                        st.session_state.mostrar_pastas = False
+                    except Exception as e:
+                        import traceback
+                        st.error(f"Erro ao gerar certificados: {e}")
+                        st.code(traceback.format_exc())
 
             with col_no:
                 if st.button("❌ Cancelar", key="btn_cancel"):
-                    st.session_state.cert_step = "idle"
-                    st.rerun()
+                    st.session_state.mostrar_pastas = False
 
-        if st.session_state.cert_step == "done":
+        if st.session_state.gerou:
             st.success("Certificados gerados com sucesso!")
-
             with open(st.session_state.caminho_saida, "rb") as file:
                 st.download_button(
                     label="⬇️ Baixar planilha gerada",

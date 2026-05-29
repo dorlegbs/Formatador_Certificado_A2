@@ -298,7 +298,7 @@ with aba_cert:
         df[coluna_nome] = df[coluna_nome].apply(limpar_nome)
         df[coluna_nome] = df[coluna_nome].apply(normalizar_nome)
 
-        st.success("Arquivo carregado com sucesso!")
+        st.info("Arquivo carregado com sucesso!")
         st.info(f"Coluna de nome encontrada: **{coluna_nome}**")
 
         if coluna_email is None:

@@ -353,22 +353,17 @@ with aba_cert:
         )
 
         signature_file = st.file_uploader(
-            "Imagem da assinatura (opcional)",
+            "Imagem da assinatura",
             type=["png", "jpg", "jpeg"],
             key="sig_upload"
         )
 
+        sig_path = None
         if signature_file is not None:
             import tempfile
             sig_path = os.path.join(tempfile.gettempdir(), "_sig_temp.png")
             with open(sig_path, "wb") as f:
                 f.write(signature_file.getbuffer())
-        else:
-            sig_path = os.path.join(
-                os.path.dirname(__file__), "assinatura_vitoria.png"
-            )
-            if not os.path.exists(sig_path):
-                sig_path = None
 
         st.divider()
 
@@ -411,7 +406,9 @@ with aba_cert:
                             caminho_saida = os.path.join("saidas", nome_saida)
 
                         textos = gerar_textos(df, coluna_nome, texto_padrao)
-                        exportar_excel(textos, caminho_saida)
+                        nomes_originais = df[coluna_nome].tolist()
+                        emails_col = df[coluna_email].tolist() if coluna_email is not None else None
+                        exportar_excel(textos, caminho_saida, nomes=nomes_originais, emails=emails_col)
 
                         if gerar_pdfs:
                             pdf_dir = pasta_pdf.strip() if pasta_pdf.strip() else None

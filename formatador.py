@@ -186,14 +186,15 @@ def gerar_textos(
 # =========================
 def exportar_excel(
     textos,
-    nome_saida
+    nome_saida,
+    nomes=None,
+    emails=None
 ):
 
-    novo_df = pd.DataFrame({
-
-        "Nomes": textos
-
-    })
+    data = {"Nome": nomes, "Texto do Certificado": textos} if nomes is not None else {"Nomes": textos}
+    if emails is not None:
+        data["Email"] = emails
+    novo_df = pd.DataFrame(data)
 
     novo_df.to_excel(
         nome_saida,

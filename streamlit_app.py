@@ -1,6 +1,9 @@
 import streamlit as st
 import pandas as pd
 import os
+import re
+import zipfile
+from io import BytesIO
 from datetime import datetime
 
 from formatador import (
@@ -13,6 +16,7 @@ from formatador import (
     gerar_textos,
     exportar_excel,
     gerar_pdf,
+    gerar_pdf_bytes,
     salvar_rascunho,
     enviar_email_smtp
 )
@@ -27,71 +31,100 @@ st.set_page_config(
 )
 
 # =========================
-# ESTILO
+# ESTADO DO TEMA
+# =========================
+if "theme" not in st.session_state:
+    st.session_state.theme = "dark"
+
+# =========================
+# ESTILO — tema escuro (padrão)
 # =========================
 st.markdown(
-    """
+    f"""
     <style>
 
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
-    html, body, [class*="css"] {
+    :root {{
+        --bg-page: #0B1A1A;
+        --bg-sidebar: #081414;
+        --bg-card: #112828;
+        --bg-card-alt: #1E2A2A;
+        --bg-hover: #163E3E;
+        --bg-hover-alt: #2A3E3E;
+        --bg-alert: #162828;
+        --bg-active: #0E3030;
+
+        --text-primary: #D1FAE5;
+        --text-secondary: #A7F3D0;
+        --text-heading: #2DD4BF;
+        --text-accent: #2DD4BF;
+        --text-tab: #5EEAD4;
+        --text-input: #FFFFFF;
+
+        --border: #2A4040;
+        --border-muted: #1A3535;
+        --border-accent: #2DD4BF;
+        --border-alert: #2A4848;
+        --border-dashed: #2A4848;
+    }}
+
+    html, body, .stApp, .stMarkdown {{
         font-family: 'Inter', sans-serif;
-        color: #D1FAE5;
-    }
+        color: var(--text-primary);
+    }}
+    .stMarkdown h1, .stMarkdown h2, .stMarkdown h3 {{
+        color: var(--text-heading);
+    }}
 
-    .stApp {
-        background-color: #0B1A1A;
-    }
+    .stApp {{
+        background-color: var(--bg-page);
+    }}
 
-    /* Remover padding topo */
-    .block-container {
+    .block-container {{
         padding-top: 0rem !important;
-    }
+    }}
 
-    /* Sidebar */
-    section[data-testid="stSidebar"] {
-        background-color: #081414;
-        border-right: 1px solid #1A3A3A;
-    }
+    section[data-testid="stSidebar"] {{
+        background-color: var(--bg-sidebar);
+        border-right: 1px solid var(--border-muted);
+    }}
 
-    section[data-testid="stSidebar"] * {
-        color: #A7F3D0 !important;
-    }
+    section[data-testid="stSidebar"] * {{
+        color: var(--text-secondary) !important;
+    }}
 
-    /* Tabs */
-    .stTabs [data-baseweb="tab-list"] {
-        background-color: #0B1A1A;
-        border-bottom: 2px solid #1A3535;
+    .stTabs [data-baseweb="tab-list"] {{
+        background-color: var(--bg-page);
+        border-bottom: 2px solid var(--border-muted);
         gap: 6px;
         padding-top: 12px;
-    }
+    }}
 
-    .stTabs [data-baseweb="tab"] {
-        background-color: #112828;
-        color: #5EEAD4 !important;
+    .stTabs [data-baseweb="tab"] {{
+        background-color: var(--bg-card);
+        color: var(--text-tab) !important;
         border-radius: 10px 10px 0 0;
         padding: 10px 30px;
         font-weight: 600;
         font-size: 14px;
-        border: 1px solid #1A3535;
+        border: 1px solid var(--border-muted);
         border-bottom: none;
         transition: all 0.2s ease;
-    }
+    }}
 
-    .stTabs [aria-selected="true"] {
-        background-color: #0E3030 !important;
-        color: #2DD4BF !important;
-        border-color: #2DD4BF !important;
-    }
+    .stTabs [aria-selected="true"] {{
+        background-color: var(--bg-active) !important;
+        color: var(--text-accent) !important;
+        border-color: var(--border-accent) !important;
+    }}
 
-    .stTabs [data-baseweb="tab"]:hover {
-        background-color: #163E3E !important;
-        color: #2DD4BF !important;
-    }
+    .stTabs [data-baseweb="tab"]:hover {{
+        background-color: var(--bg-hover) !important;
+        color: var(--text-accent) !important;
+    }}
 
-    /* Botao principal */
-    .stButton button {
+    .stButton button {{
         background: linear-gradient(135deg, #0D9488, #06B6D4);
         color: white !important;
         border-radius: 10px;
@@ -102,107 +135,167 @@ st.markdown(
         width: 100%;
         letter-spacing: 0.4px;
         transition: opacity 0.2s ease;
-    }
+    }}
 
-    .stButton button:hover {
+    .stButton button:hover {{
         opacity: 0.85;
         color: white !important;
-    }
+    }}
 
-    /* Headings */
-    h1, h2, h3 {
-        color: #2DD4BF;
-    }
+    h1, h2, h3 {{
+        color: var(--text-heading);
+    }}
 
-    /* =====================
-       INPUTS — cinza escuro
-       texto branco
-    ===================== */
     .stTextInput input,
     .stTextArea textarea,
     .stSelectbox div[data-baseweb="select"],
     .stSelectbox div[data-baseweb="select"] > div,
-    .stMultiSelect div[data-baseweb="select"] {
-        background-color: #1E2A2A !important;
-        color: #FFFFFF !important;
-        border-color: #2A4040 !important;
+    .stMultiSelect div[data-baseweb="select"] {{
+        background-color: var(--bg-card-alt) !important;
+        color: var(--text-input) !important;
+        border-color: var(--border) !important;
         border-radius: 8px;
-    }
+    }}
 
-    /* Dropdown options */
     [data-baseweb="popover"] li,
-    [data-baseweb="menu"] li {
-        background-color: #1E2A2A !important;
-        color: #FFFFFF !important;
-    }
+    [data-baseweb="menu"] li {{
+        background-color: var(--bg-card-alt) !important;
+        color: var(--text-input) !important;
+    }}
 
     [data-baseweb="popover"] li:hover,
-    [data-baseweb="menu"] li:hover {
-        background-color: #2A3E3E !important;
-    }
+    [data-baseweb="menu"] li:hover {{
+        background-color: var(--bg-hover-alt) !important;
+    }}
 
-    /* File uploader */
-    [data-testid="stFileUploader"] {
-        background-color: #1E2A2A;
-        border: 2px dashed #2A4848;
+    [data-testid="stFileUploader"] {{
+        background-color: var(--bg-card-alt);
+        border: 2px dashed var(--border-dashed);
         border-radius: 12px;
         padding: 16px;
-    }
+    }}
+    [data-testid="stFileUploader"] * {{
+        color: var(--text-primary) !important;
+    }}
+    [data-testid="stFileUploader"] button {{
+        background: var(--bg-card) !important;
+        border: 1px solid var(--border) !important;
+        color: var(--text-accent) !important;
+        border-radius: 8px;
+        height: 36px;
+        font-weight: 600;
+    }}
 
-    /* Dataframe */
-    .stDataFrame {
+    .stDataFrame {{
         border-radius: 10px;
         overflow: hidden;
-    }
+    }}
 
-    /* Divider */
-    hr {
-        border-color: #1A3535;
-    }
+    hr {{
+        border-color: var(--border-muted);
+    }}
 
-    /* Checkbox */
-    .stCheckbox label {
-        color: #A7F3D0 !important;
-        font-size: 14px;
-    }
+    .stCheckbox label,
+    .stCheckbox label *,
+    .stCheckbox .st-cb-label,
+    .stCheckbox .st-cb-label *,
+    .stCheckbox p,
+    .stCheckbox span {{
+        color: var(--text-primary) !important;
+    }}
+    .stCheckbox svg,
+    .stCheckbox path {{
+        fill: var(--text-primary) !important;
+    }}
 
-    /* =====================
-       ALERTAS UNIFICADOS
-       cinza-esverdeado escuro
-    ===================== */
-    div[data-testid="stAlert"] {
-        background-color: #162828 !important;
-        border: 1px solid #2A4848 !important;
-        border-left: 4px solid #2A4848 !important;
+    div[data-testid="stAlert"] {{
+        background-color: var(--bg-alert) !important;
+        border: 1px solid var(--border-alert) !important;
+        border-left: 4px solid var(--border-alert) !important;
         border-radius: 10px !important;
-    }
+    }}
 
     div[data-testid="stAlert"] p,
     div[data-testid="stAlert"] span,
     div[data-testid="stAlert"] div,
-    div[data-testid="stAlert"] svg {
-        color: #A7F3D0 !important;
-        fill: #A7F3D0 !important;
-    }
+    div[data-testid="stAlert"] svg {{
+        color: var(--text-secondary) !important;
+        fill: var(--text-secondary) !important;
+    }}
 
-    /* Download button */
-    [data-testid="stDownloadButton"] button {
+    [data-testid="stDownloadButton"] button {{
         background: linear-gradient(135deg, #065F46, #0D9488) !important;
-    }
+    }}
 
-    /* Labels dos inputs */
     label[data-testid="stWidgetLabel"] p,
     .stTextInput label,
     .stTextArea label,
-    .stSelectbox label {
-        color: #A7F3D0 !important;
+    .stSelectbox label {{
+        color: var(--text-secondary) !important;
         font-size: 13px;
-    }
+    }}
+
+    /* Botão de alternância de tema — sem fundo gradiente */
+    [data-testid="stHorizontalBlock"]:first-of-type [data-testid="column"]:last-child .stButton button {{
+        background: transparent !important;
+        border: 1px solid var(--border-muted) !important;
+        color: var(--text-secondary) !important;
+        height: 36px !important;
+        padding: 2px 14px !important;
+        font-size: 13px !important;
+        font-weight: 600 !important;
+        width: auto !important;
+        letter-spacing: 0.3px !important;
+    }}
+    [data-testid="stHorizontalBlock"]:first-of-type [data-testid="column"]:last-child .stButton button:hover {{
+        background: var(--bg-hover) !important;
+        opacity: 1 !important;
+    }}
 
     </style>
     """,
     unsafe_allow_html=True
 )
+
+# =========================
+# ESTILO — tema claro (sobrescreve variáveis)
+# =========================
+if st.session_state.theme == "light":
+    st.markdown(
+        """
+        <style>
+        :root {
+            --bg-page: #D6E8E4;
+            --bg-sidebar: #CCE0DC;
+            --bg-card: #EAF5F2;
+            --bg-card-alt: #EAF5F2;
+            --bg-hover: #CCE0DC;
+            --bg-hover-alt: #C2D8D4;
+            --bg-alert: #E0F0EC;
+            --bg-active: #EAF5F2;
+
+            --text-primary: #0B1A1A;
+            --text-secondary: #0B1A1A;
+            --text-heading: #0B1A1A;
+            --text-accent: #0B1A1A;
+            --text-tab: #0B1A1A;
+            --text-input: #0B1A1A;
+
+            --border: #B0C8C4;
+            --border-muted: #C0D6D2;
+            --border-accent: #0B1A1A;
+            --border-alert: #A0CCC4;
+            --border-dashed: #B0C8C4;
+        }
+        .stCheckbox label,
+        .stCheckbox label *,
+        .stCheckbox .st-cb-label { color: #0B1A1A !important; }
+        .stCheckbox svg,
+        .stCheckbox path { fill: #0B1A1A !important; }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
 
 # =========================
 # PASTAS
@@ -215,14 +308,14 @@ os.makedirs("pdfs", exist_ok=True)
 # COVER (banner retangular)
 # =========================
 if os.path.exists("cover.png"):
-    st.image("cover.png", use_container_width=True)
+    st.image("cover.png", width="stretch")
 elif os.path.exists("banner.png"):
-    st.image("banner.png", use_container_width=True)
+    st.image("banner.png", width="stretch")
 
 # =========================
 # HEADER: logo + titulo
 # =========================
-col_logo, col_title = st.columns([1, 9])
+col_logo, col_title, col_theme = st.columns([1, 8, 1])
 
 with col_logo:
     if os.path.exists("logo.png"):
@@ -236,20 +329,24 @@ with col_title:
                 margin: 0;
                 font-size: 28px;
                 font-weight: 700;
-                color: #2DD4BF;
                 line-height: 1.1;
             '>GESTÃO</h1>
             <span style='
                 font-size: 11px;
                 font-weight: 600;
                 letter-spacing: 3px;
-                color: #5EEAD4;
                 text-transform: uppercase;
             '>LACOM Jr.</span>
         </div>
         """,
         unsafe_allow_html=True
     )
+
+with col_theme:
+    theme_label = "Claro" if st.session_state.theme == "light" else "Escuro"
+    if st.button(theme_label, key="theme_toggle", help="Alternar tema claro/escuro"):
+        st.session_state.theme = "light" if st.session_state.theme == "dark" else "dark"
+        st.rerun()
 
 st.divider()
 
@@ -334,7 +431,7 @@ with aba_cert:
 
         # Preview
         st.subheader("Preview da Planilha")
-        st.dataframe(df, use_container_width=True)
+        st.dataframe(df, width="stretch")
 
         # Texto certificado
         st.subheader("Texto do Certificado")
@@ -370,91 +467,92 @@ with aba_cert:
         # =========================
         # FLUXO DE GERAÇÃO
         # =========================
-        if "mostrar_pastas" not in st.session_state:
-            st.session_state.mostrar_pastas = False
         if "gerou" not in st.session_state:
             st.session_state.gerou = False
 
         if st.button("Gerar Certificados", key="btn_cert"):
-            st.session_state.mostrar_pastas = True
-            st.session_state.gerou = False
+            with st.spinner("Gerando certificados..."):
+                try:
+                    nome_base = os.path.splitext(arquivo.name)[0]
+                    nome_saida = f"saida_{nome_base}.xlsx"
+                    caminho_saida = os.path.join("saidas", nome_saida)
 
-        if st.session_state.mostrar_pastas:
-            st.markdown("### 📁 Escolher pastas de destino")
+                    textos = gerar_textos(df, coluna_nome, texto_padrao)
+                    nomes_originais = df[coluna_nome].tolist()
+                    emails_col = df[coluna_email].tolist() if coluna_email is not None else None
+                    exportar_excel(textos, caminho_saida, nomes=nomes_originais, emails=emails_col)
 
-            pasta_excel = st.text_input(
-                "Pasta para salvar a planilha Excel (deixe em branco para usar 'saidas/')",
-                key="pasta_excel"
-            )
-
-            if gerar_pdfs:
-                pasta_pdf = st.text_input(
-                    "Pasta para salvar os PDFs (deixe em branco para usar 'pdfs/')",
-                    key="pasta_pdf"
-                )
-
-            col_ok, col_no = st.columns(2)
-            with col_ok:
-                if st.button("✅ Confirmar e Gerar", key="btn_confirm"):
-                    try:
-                        nome_base = os.path.splitext(arquivo.name)[0]
-                        nome_saida = f"saida_{nome_base}.xlsx"
-
-                        if pasta_excel.strip():
-                            caminho_saida = os.path.join(pasta_excel, nome_saida)
-                        else:
-                            caminho_saida = os.path.join("saidas", nome_saida)
-
-                        textos = gerar_textos(df, coluna_nome, texto_padrao)
-                        nomes_originais = df[coluna_nome].tolist()
-                        emails_col = df[coluna_email].tolist() if coluna_email is not None else None
-                        exportar_excel(textos, caminho_saida, nomes=nomes_originais, emails=emails_col)
-
-                        if gerar_pdfs:
-                            pdf_dir = pasta_pdf.strip() if pasta_pdf.strip() else None
+                    zip_path = None
+                    if gerar_pdfs:
+                        zip_path = os.path.join("saidas", f"certificados_{nome_base}.zip")
+                        with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
                             for texto, nome in zip(textos, df[coluna_nome]):
-                                gerar_pdf(nome, texto, signature_path=sig_path, output_dir=pdf_dir)
+                                pdf_buf = gerar_pdf_bytes(
+                                    nome, texto, signature_path=sig_path
+                                )
+                                nome_arquivo = re.sub(r'[\\/*?:"<>|]', "_", str(nome)) + ".pdf"
+                                zf.writestr(nome_arquivo, pdf_buf.getvalue())
+                                # Também salva individualmente para usar nos e-mails
+                                pdf_indiv_path = os.path.join("pdfs", nome_arquivo)
+                                os.makedirs("pdfs", exist_ok=True)
+                                with open(pdf_indiv_path, "wb") as f:
+                                    f.write(pdf_buf.getvalue())
 
-                        # Historico
-                        historico_path = os.path.join("historico", "historico.xlsx")
-                        novo_historico = pd.DataFrame({
-                            "Arquivo":    [arquivo.name],
-                            "Data":       [datetime.now().strftime("%d/%m/%Y %H:%M")],
-                            "Quantidade": [len(df)]
-                        })
-                        if os.path.exists(historico_path):
-                            historico_antigo = pd.read_excel(historico_path)
-                            novo_historico = pd.concat(
-                                [historico_antigo, novo_historico],
-                                ignore_index=True
-                            )
-                        novo_historico.to_excel(historico_path, index=False)
+                    # Historico
+                    historico_path = os.path.join("historico", "historico.xlsx")
+                    novo_historico = pd.DataFrame({
+                        "Arquivo":    [arquivo.name],
+                        "Data":       [datetime.now().strftime("%d/%m/%Y %H:%M")],
+                        "Quantidade": [len(df)]
+                    })
+                    if os.path.exists(historico_path):
+                        historico_antigo = pd.read_excel(historico_path)
+                        novo_historico = pd.concat(
+                            [historico_antigo, novo_historico],
+                            ignore_index=True
+                        )
+                    novo_historico.to_excel(historico_path, index=False)
 
-                        st.session_state.gerou = True
-                        st.session_state.caminho_saida = caminho_saida
-                        st.session_state.nome_saida = nome_saida
-                        st.session_state.mostrar_pastas = False
-                    except Exception as e:
-                        import traceback
-                        st.error(f"Erro ao gerar certificados: {e}")
-                        st.code(traceback.format_exc())
+                    st.session_state.gerou = True
+                    st.session_state.caminho_saida = caminho_saida
+                    st.session_state.nome_saida = nome_saida
+                    st.session_state.zip_path = zip_path
+                    st.session_state.nome_base = nome_base
+                except Exception as e:
+                    import traceback
+                    st.error(f"Erro ao gerar certificados: {e}")
+                    st.code(traceback.format_exc())
 
-            with col_no:
-                if st.button("❌ Cancelar", key="btn_cancel"):
-                    st.session_state.mostrar_pastas = False
-
-        if st.session_state.gerou:
+        if st.session_state.get("gerou", False):
             st.success("Certificados gerados com sucesso!")
-            with open(st.session_state.caminho_saida, "rb") as file:
-                st.download_button(
-                    label="⬇️ Baixar planilha gerada",
-                    data=file,
-                    file_name=st.session_state.nome_saida,
-                    mime=(
-                        "application/vnd.openxmlformats-"
-                        "officedocument.spreadsheetml.sheet"
-                    )
-                )
+
+            col_d1, col_d2 = st.columns(2)
+
+            with col_d1:
+                if os.path.exists(st.session_state.caminho_saida):
+                    with open(st.session_state.caminho_saida, "rb") as file:
+                        st.download_button(
+                            label="⬇ Baixar Planilha (.xlsx)",
+                            data=file,
+                            file_name=st.session_state.nome_saida,
+                            mime=(
+                                "application/vnd.openxmlformats-"
+                                "officedocument.spreadsheetml.sheet"
+                            ),
+                            key="dl_excel"
+                        )
+
+            with col_d2:
+                zip_path = st.session_state.get("zip_path")
+                if zip_path and os.path.exists(zip_path):
+                    with open(zip_path, "rb") as file:
+                        st.download_button(
+                            label="Baixar Certificados (ZIP)",
+                            data=file,
+                            file_name=f"certificados_{st.session_state.nome_base}.zip",
+                            mime="application/zip",
+                            key="dl_zip"
+                        )
 
 
 
@@ -527,7 +625,7 @@ with aba_email:
 
         # Preview
         st.subheader("Preview da Planilha")
-        st.dataframe(df_email, use_container_width=True)
+        st.dataframe(df_email, width="stretch")
 
         # Config email
         st.subheader("Configuracao do E-mail")
@@ -542,9 +640,9 @@ with aba_email:
             "Mensagem do email — use {nome} para personalizar",
             value=(
                 "Parabens, {nome}!\n\n"
-                "Segue em anexo seu certificado de participacao.\n\n"
+                "Segue em anexo seu certificado de participacão.\n\n"
                 "Atenciosamente,\n"
-                "Equipe LACOM Jr."
+                "Seu nome ou equipe"
             ),
             height=200,
             key="mensagem"
@@ -590,13 +688,12 @@ with aba_email:
             )
 
             # Indexar todos os PDFs da pasta (case-insensitive)
-            import re as _re
             pdf_index = {}
             if anexar_pdf and os.path.isdir("pdfs"):
                 for f in os.listdir("pdfs"):
                     if f.lower().endswith(".pdf"):
                         stem = os.path.splitext(f)[0]
-                        chave = _re.sub(r'[\\/*?:"<>|]', "_", stem).lower()
+                        chave = re.sub(r'[\\/*?:"<>|]', "_", stem).lower()
                         pdf_index[chave] = os.path.join("pdfs", f)
 
             # Prepara lista de rascunhos
@@ -610,7 +707,7 @@ with aba_email:
                     tem_noname = True
                     continue
 
-                chave = _re.sub(r'[\\/*?:"<>|]', "_", nome_str).lower()
+                chave = re.sub(r'[\\/*?:"<>|]', "_", nome_str).lower()
                 if not chave:
                     chave = "certificado"
 
@@ -725,7 +822,7 @@ with aba_hist:
 
     if os.path.exists(historico_path):
         historico_df = pd.read_excel(historico_path)
-        st.dataframe(historico_df, use_container_width=True)
+        st.dataframe(historico_df, width="stretch")
     else:
         st.info(
             "Nenhum historico encontrado ainda. "
